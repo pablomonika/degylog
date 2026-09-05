@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracking Preview - Digylog</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { color: #1a1a1a; margin-bottom: 20px; font-size: 24px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .stat-label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: bold; color: #1a1a1a; }
+    .stat-value.green { color: #10b981; }
+    .stat-value.blue { color: #3b82f6; }
+    .stat-value.orange { color: #f59e0b; }
+    table { width: 100%; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    th { background: #f9fafb; padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e5e7eb; }
+    td { padding: 14px 16px; border-bottom: 1px solid #f3f4f6; font-size: 14px; color: #374151; }
+    tr:hover { background: #f9fafb; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-orange { background: #fed7aa; color: #9a3412; }
+    .badge-gray { background: #f3f4f6; color: #4b5563; }
+    .tracking-num { font-family: 'Courier New', monospace; font-weight: 600; color: #1f2937; }
+    .empty { text-align: center; padding: 60px 20px; color: #9ca3af; }
+    .loading { text-align: center; padding: 40px; color: #6b7280; }
+    .error { background: #fee2e2; color: #991b1b; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+    .refresh-btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 20px; }
+    .refresh-btn:hover { background: #2563eb; }
+    .info-box { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+    .info-box p { color: #1e40af; font-size: 14px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📦 Tracking Preview - Digylog</h1>
+    
+    <div class="info-box">
+      <p><strong>ℹ️ هاد الصفحة للعرض فقط:</strong> كاتعرض الطلبات اللي عندها "Expédier vers" و الـ Tracking numbers ديالهم. ما كاتبدّلش حتى بيانات فـ CRM.</p>
+    </div>
+
+    <button class="refresh-btn" onclick="loadData()">🔄 تحديث</button>
+
+    <div id="stats" class="stats"></div>
+    <div id="content"><div class="loading">⏳ جاري التحميل...</div></div>
+  </div>
+
+  <script>
+    const API_URL = 'api.php?token=c6e04cb5de9088be01a685abc243995a80426eba45de2060';
+
+    async function loadData() {
+      const content = document.getElementById('content');
+      const stats = document.getElementById('stats');
+      content.innerHTML = '<div class="loading">⏳ جاري التحميل...</div>';
+
+      try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+
+        // Extract orders from afrizon_orders_v5
+        const orders = (data.afrizon_orders_v5 && data.afrizon_orders_v5.d) || [];
+        
+        // Filter orders with "Expédier vers" or tracking
+        const shipped = orders.filter(o => {
+          const livraison = (o.livraison || '').toLowerCase();
+          const tracking = o.tracking || '';
+          return livraison.includes('expédier') || livraison.includes('expedie') || tracking !== '';
+        });
+
+        // Stats
+        const totalShipped = shipped.length;
+        const withTracking = shipped.filter(o => (o.tracking || '') !== '').length;
+        const withoutTracking = totalShipped - withTracking;
+
+        stats.innerHTML = `
+          <div class="stat-card">
+            <div class="stat-label">إجمالي الطلبات المرسلة</div>
+            <div class="stat-value blue">${totalShipped}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">عندها Tracking</div>
+            <div class="stat-value green">${withTracking}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">بلا Tracking</div>
+            <div class="stat-value orange">${withoutTracking}</div>
+          </div>
+        `;
+
+        if (shipped.length === 0) {
+          content.innerHTML = '<div class="empty"><h2>📭 لا توجد طلبات مرسلة</h2><p>الطلبات اللي عندها "Expédier vers" غادي يبانو هنا</p></div>';
+          return;
+        }
+
+        // Table
+        let html = '<table><thead><tr>';
+        html += '<th>#</th><th>التاريخ</th><th>الاسم</th><th>الهاتف</th><th>الحالة</th><th>Tracking</th>';
+        html += '</tr></thead><tbody>';
+
+        shipped.forEach((order, i) => {
+          const tracking = order.tracking || '';
+          const livraison = order.livraison || '—';
+          const date = order.dateCreation ? new Date(order.dateCreation).toLocaleDateString('fr-FR') : '—';
+          
+          let badgeClass = 'badge-gray';
+          if (livraison.toLowerCase().includes('livr')) badgeClass = 'badge-green';
+          else if (livraison.toLowerCase().includes('expé')) badgeClass = 'badge-blue';
+          else if (livraison.toLowerCase().includes('retour')) badgeClass = 'badge-orange';
+
+          html += '<tr>';
+          html += '<td>' + (i + 1) + '</td>';
+          html += '<td>' + date + '</td>';
+          html += '<td><strong>' + (order.nom || '—') + '</strong></td>';
+          html += '<td>' + (order.telephone || '—') + '</td>';
+          html += '<td><span class="badge ' + badgeClass + '">' + livraison + '</span></td>';
+          html += '<td>' + (tracking ? '<span class="tracking-num">' + tracking + '</span>' : '<span style="color:#9ca3af">—</span>') + '</td>';
+          html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        content.innerHTML = html;
+
+      } catch (e) {
+        content.innerHTML = '<div class="error">❌ خطأ في الاتصال: ' + e.message + '</div>';
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
