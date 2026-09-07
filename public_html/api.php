@@ -94,6 +94,28 @@ function crm_merge_orders($oldOrders, $newOrders) {
 $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 
+
+/* ---------- PATH CHECK ---------- */
+if (isset($_GET['action']) && $_GET['action'] === 'path') {
+  if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
+  
+  global $DATA_FILE;
+  $info = array(
+    'ok' => true,
+    'data_file' => $DATA_FILE,
+    'exists' => file_exists($DATA_FILE),
+    'writable' => is_writable(dirname($DATA_FILE)),
+    'size' => file_exists($DATA_FILE) ? filesize($DATA_FILE) : 0,
+    'dir' => dirname($DATA_FILE),
+    'dir_exists' => is_dir(dirname($DATA_FILE)),
+    'dir_writable' => is_writable(dirname($DATA_FILE)),
+    'current_dir' => __DIR__,
+    'files_in_dir' => array_filter(scandir(__DIR__), function($f) { return strpos($f, 'crm') !== false || strpos($f, '.json') !== false; })
+  );
+  
+  crm_out($info);
+}
+
 /* ---------- DEBUG ---------- */
 if (isset($_GET['action']) && $_GET['action'] === 'debug') {
   if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
