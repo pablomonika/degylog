@@ -119,6 +119,38 @@ if ($action === 'debug') {
   crm_out($debug);
 }
 
+// SYNC
+if ($action === 'sync') {
+  if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
+  
+  // POST: Receive data from localStorage and save to crm_data.json
+  if ($m === 'POST') {
+    $raw = file_get_contents('php://input');
+    $b = json_decode($raw, true);
+    if (!is_array($b)) crm_out(array('ok'=>false, 'err'=>'bad-json'), 400);
+    
+    // Merge with existing data
+    $data = crm_read();
+    foreach ($b as $key => $value) {
+      if (is_array($value) && isset($value['d'])) {
+        $data[$key] = $value;
+      }
+    }
+    
+    if (!crm_write($data)) {
+      crm_out(array('ok'=>false, 'err'=>'write-failed'), 500);
+    }
+    
+    crm_out(array('ok'=>true, 'synced'=>count($b)));
+  }
+  
+  // GET: Return all data from crm_data.json
+  if ($m === 'GET') {
+    $data = crm_read();
+    crm_out($data);
+  }
+}
+
 // GET
 if ($m === 'GET') {
   $data = crm_read();
