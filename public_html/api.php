@@ -76,6 +76,24 @@ function crm_merge_orders($oldOrders, $newOrders) {
 
 $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+
+// TEST WRITE
+if (isset($_GET['action']) && $_GET['action'] === 'test_write') {
+  if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
+  
+  $test_data = array('test' => array('t' => time() * 1000, 'd' => array('message' => 'test data', 'time' => date('Y-m-d H:i:s'))));
+  
+  $result = crm_write($test_data);
+  
+  crm_out(array(
+    'ok' => $result,
+    'message' => $result ? 'File created successfully' : 'Failed to create file',
+    'file_path' => $DATA_FILE,
+    'file_exists_after' => file_exists($DATA_FILE),
+    'file_size_after' => file_exists($DATA_FILE) ? filesize($DATA_FILE) : 0
+  ));
+}
+
 // PATH CHECK
 if (isset($_GET['action']) && $_GET['action'] === 'path') {
   if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
