@@ -1,6 +1,6 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', '0');
+ini_set('display_errors', '1');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -37,14 +37,12 @@ function crm_write($data) {
   $tmp = $DATA_FILE . '.tmp.' . getmypid();
   if (file_put_contents($tmp, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX) === false) return false;
   if (!rename($tmp, $DATA_FILE)) { unlink($tmp); return false; }
+  return true;
+}
 
-/* ===================================================================== */
-/* Merge Function — حماية من Concurrent Editing                          */
-/* ===================================================================== */
 function crm_merge_orders($oldOrders, $newOrders) {
   if (!is_array($oldOrders) || !is_array($newOrders)) return $newOrders;
   
-  // Build index of old orders by id
   $oldById = array();
   foreach ($oldOrders as $order) {
     if (!is_array($order)) continue;
@@ -52,7 +50,6 @@ function crm_merge_orders($oldOrders, $newOrders) {
     if ($id !== null) $oldById[$id] = $order;
   }
   
-  // Build index of new orders by id
   $newById = array();
   foreach ($newOrders as $order) {
     if (!is_array($order)) continue;
@@ -61,26 +58,15 @@ function crm_merge_orders($oldOrders, $newOrders) {
   }
   
   $merged = array();
-  
-  // Process all orders from new list
   foreach ($newOrders as $newOrder) {
     if (!is_array($newOrder)) { $merged[] = $newOrder; continue; }
     $id = isset($newOrder['id']) ? $newOrder['id'] : null;
     if ($id === null) { $merged[] = $newOrder; continue; }
-    
-    if (isset($oldById[$id])) {
-      // Order exists in old — use new version (user updated it)
-      $merged[] = $newOrder;
-    } else {
-      // New order — accept it
-      $merged[] = $newOrder;
-    }
+    $merged[] = $newOrder;
   }
   
-  // Add orders from old that are missing in new (prevent deletion)
   foreach ($oldById as $id => $oldOrder) {
     if (!isset($newById[$id])) {
-      // Order missing from new write — preserve it (prevent concurrent deletion)
       $merged[] = $oldOrder;
     }
   }
@@ -88,41 +74,26 @@ function crm_merge_orders($oldOrders, $newOrders) {
   return $merged;
 }
 
-  return true;
-}
-
 $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-
-
-/* ---------- PATH CHECK ---------- */
+// PATH CHECK
 if (isset($_GET['action']) && $_GET['action'] === 'path') {
   if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
-  
-  global $DATA_FILE;
-  $info = array(
+  crm_out(array(
     'ok' => true,
     'data_file' => $DATA_FILE,
     'exists' => file_exists($DATA_FILE),
-    'writable' => is_writable(dirname($DATA_FILE)),
     'size' => file_exists($DATA_FILE) ? filesize($DATA_FILE) : 0,
-    'dir' => dirname($DATA_FILE),
-    'dir_exists' => is_dir(dirname($DATA_FILE)),
-    'dir_writable' => is_writable(dirname($DATA_FILE)),
-    'current_dir' => __DIR__,
-    'files_in_dir' => array_filter(scandir(__DIR__), function($f) { return strpos($f, 'crm') !== false || strpos($f, '.json') !== false; })
-  );
-  
-  crm_out($info);
+    'writable' => is_writable(dirname($DATA_FILE)),
+    'current_dir' => __DIR__
+  ));
 }
 
-/* ---------- DEBUG ---------- */
+// DEBUG
 if (isset($_GET['action']) && $_GET['action'] === 'debug') {
   if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
-  
   $data = crm_read();
-  $debug = array('ok' => true, 'keys' => array(), 'debug_log' => '');
-  
+  $debug = array('ok' => true, 'keys' => array());
   foreach ($data as $key => $value) {
     $count = 'N/A';
     if (isset($value['d']) && is_array($value['d'])) {
@@ -133,24 +104,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'debug') {
       'last_write' => isset($value['t']) ? date('Y-m-d H:i:s', $value['t'] / 1000) : 'N/A'
     );
   }
-  
-  // Read debug.log if exists
-  $debug_log_file = __DIR__ . '/debug.log';
-  if (file_exists($debug_log_file)) {
-    $debug['debug_log'] = file_get_contents($debug_log_file);
-  }
-  
   crm_out($debug);
 }
 
-/* ---------- GET ---------- */
+// GET
 if ($m === 'GET') {
   $data = crm_read();
   echo json_encode($data, JSON_UNESCAPED_UNICODE);
   exit;
 }
 
-/* ---------- POST ---------- */
+// POST
 if ($m === 'POST') {
   if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
 
@@ -158,12 +122,10 @@ if ($m === 'POST') {
   $b = json_decode($raw, true);
   if (!is_array($b)) crm_out(array('ok'=>false, 'err'=>'bad-json'), 400);
 
-  // Restore from backup
   if (isset($b['action']) && $b['action'] === 'restore') {
     crm_out(array('ok'=>false, 'err'=>'restore-not-implemented'), 501);
   }
 
-  // Normal write
   if (!isset($b['key']) || !isset($b['d'])) {
     crm_out(array('ok'=>false, 'err'=>'bad-body'), 400);
   }
@@ -172,29 +134,17 @@ if ($m === 'POST') {
   $d = $b['d'];
   $t = isset($b['t']) ? (int)$b['t'] : (int)(microtime(true) * 1000);
 
-  // Read current data
   $data = crm_read();
 
-  // Backup before write
   if (file_exists($DATA_FILE)) {
     $backup = $DATA_FILE . '.backup';
     copy($DATA_FILE, $backup);
   }
 
-  // Debug logging
-  $debug_log = __DIR__ . '/debug.log';
-  file_put_contents($debug_log, date('Y-m-d H:i:s') . " | POST key=$k | new_count=" . (is_array($d) ? count($d) : 'N/A') . " | old_count=" . (isset($data[$k]['d']) && is_array($data[$k]['d']) ? count($data[$k]['d']) : 'N/A') . "\n", FILE_APPEND);
-  
-  // Merge orders if this is an orders write
   if ($k === 'afrizon_orders_v5' && isset($data[$k]['d']) && is_array($data[$k]['d']) && is_array($d)) {
-    $old_count = count($data[$k]['d']);
-    $new_count = count($d);
     $d = crm_merge_orders($data[$k]['d'], $d);
-    $merged_count = count($d);
-    file_put_contents($debug_log, date('Y-m-d H:i:s') . " | MERGE old=$old_count new=$new_count merged=$merged_count\n", FILE_APPEND);
   }
-  
-  // Write new data
+
   $data[$k] = array('t' => $t, 'd' => $d);
   if (!crm_write($data)) {
     crm_out(array('ok'=>false, 'err'=>'write-failed'), 500);
