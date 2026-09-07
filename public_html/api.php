@@ -557,15 +557,15 @@ function crm_merge_orders_crud($oldOrders, $newOrders) {
       $age = crm_now_ms() - $createdAt;
       $ageSeconds = $age / 1000;
       
-      if ($ageSeconds < 60) {
-        // Order was recently created — preserve it (prevent accidental deletion)
+      if ($ageSeconds < 300) {
+        // Order was recently created (within 5 minutes) — preserve it (prevent accidental deletion from concurrent users)
         $merged[] = $oldOrder;
         $stats['preserved']++;
-        crm_audit('order_preserved_recent', "order=$id | age=${ageSeconds}s < 60s | PRESERVED (prevented deletion)");
+        crm_audit('order_preserved_recent', "order=$id | age=${ageSeconds}s < 300s | PRESERVED (prevented deletion from concurrent user)");
       } else {
-        // Order is old enough — allow deletion
+        // Order is old enough (> 5 minutes) — allow deletion
         $stats['deleted']++;
-        crm_audit('order_deleted', "order=$id | age=${ageSeconds}s > 60s | DELETE operation");
+        crm_audit('order_deleted', "order=$id | age=${ageSeconds}s > 300s | DELETE operation");
       }
     }
   }
