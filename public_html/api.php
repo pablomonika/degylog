@@ -991,7 +991,37 @@ function crm_boot_meta() {
         $queueFile = $writeQueue->enqueue($userId, $b['key'], $b['d'], isset($b['t']) ? $b['t'] : crm_now_ms());
         crm_audit('queue_enqueued', "user=$userId key={$b['key']}");
         
-        crm_out(array('ok'=>true, 'queued'=>true, 'queue_file'=>basename($queueFile)));
+        // Process all queues immediately (auto-merge)
+        $processed = 0;
+        $writeQueue->processAll(function($key, $data, $uid) use (&$processed) {
+            $lock = crm_lock();
+            $dataStore = crm_read_data(true, true);
+            $meta = crm_read_meta();
+            
+            $nowMs = crm_now_ms();
+            $oldEntry = (isset($dataStore[$key]) && is_array($dataStore[$key])) ? $dataStore[$key] : null;
+            $oldD = $oldEntry ? (isset($oldEntry['d']) ? $oldEntry['d'] : null) : null;
+            
+            // Per-Order CRUD للطلبيات
+            if ($key === 'afrizon_orders_v5' && is_array($data) && $oldD !== null && is_array($oldD)) {
+                $data = crm_merge_orders_crud($oldD, $data);
+            }
+            
+            if ($oldEntry !== null) crm_backup_current('write');
+            $dataStore[$key] = array('t' => $nowMs, 'd' => $data);
+            crm_atomic_write(crm_data_path(), json_encode($dataStore, JSON_UNESCAPED_UNICODE));
+            
+            $meta['counts']['write']++;
+            $meta['last_write'] = time();
+            crm_write_meta($meta);
+            
+            crm_audit('queue_processed', "key=$key user=$uid");
+            crm_unlock($lock);
+            $processed++;
+        });
+        
+        $writeQueue->cleanup();
+        crm_out(array('ok'=>true, 'queued'=>true, 'processed'=>$processed));
     }
     
     // GET: Process all queues and return status
