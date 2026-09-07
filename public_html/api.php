@@ -59,9 +59,6 @@ function crm_merge_orders($oldOrders, $newOrders) {
   
   $merged = array();
   foreach ($newOrders as $newOrder) {
-    if (!is_array($newOrder)) { $merged[] = $newOrder; continue; }
-    $id = isset($newOrder['id']) ? $newOrder['id'] : null;
-    if ($id === null) { $merged[] = $newOrder; continue; }
     $merged[] = $newOrder;
   }
   
@@ -75,27 +72,24 @@ function crm_merge_orders($oldOrders, $newOrders) {
 }
 
 $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-
+$action = isset($_GET['action']) ? $_GET['action'] : '';
 
 // TEST WRITE
-if (isset($_GET['action']) && $_GET['action'] === 'test_write') {
+if ($action === 'test_write') {
   if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
   
-  $test_data = array('test' => array('t' => time() * 1000, 'd' => array('message' => 'test data', 'time' => date('Y-m-d H:i:s'))));
-  
+  $test_data = array('test' => array('t' => time() * 1000, 'd' => array('message' => 'test')));
   $result = crm_write($test_data);
   
   crm_out(array(
     'ok' => $result,
-    'message' => $result ? 'File created successfully' : 'Failed to create file',
-    'file_path' => $DATA_FILE,
     'file_exists_after' => file_exists($DATA_FILE),
     'file_size_after' => file_exists($DATA_FILE) ? filesize($DATA_FILE) : 0
   ));
 }
 
 // PATH CHECK
-if (isset($_GET['action']) && $_GET['action'] === 'path') {
+if ($action === 'path') {
   if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
   crm_out(array(
     'ok' => true,
@@ -108,7 +102,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'path') {
 }
 
 // DEBUG
-if (isset($_GET['action']) && $_GET['action'] === 'debug') {
+if ($action === 'debug') {
   if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
   $data = crm_read();
   $debug = array('ok' => true, 'keys' => array());
@@ -140,10 +134,6 @@ if ($m === 'POST') {
   $b = json_decode($raw, true);
   if (!is_array($b)) crm_out(array('ok'=>false, 'err'=>'bad-json'), 400);
 
-  if (isset($b['action']) && $b['action'] === 'restore') {
-    crm_out(array('ok'=>false, 'err'=>'restore-not-implemented'), 501);
-  }
-
   if (!isset($b['key']) || !isset($b['d'])) {
     crm_out(array('ok'=>false, 'err'=>'bad-body'), 400);
   }
@@ -153,11 +143,6 @@ if ($m === 'POST') {
   $t = isset($b['t']) ? (int)$b['t'] : (int)(microtime(true) * 1000);
 
   $data = crm_read();
-
-  if (file_exists($DATA_FILE)) {
-    $backup = $DATA_FILE . '.backup';
-    copy($DATA_FILE, $backup);
-  }
 
   if ($k === 'afrizon_orders_v5' && isset($data[$k]['d']) && is_array($data[$k]['d']) && is_array($d)) {
     $d = crm_merge_orders($data[$k]['d'], $d);
