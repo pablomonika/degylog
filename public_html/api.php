@@ -37,6 +37,57 @@ function crm_write($data) {
   $tmp = $DATA_FILE . '.tmp.' . getmypid();
   if (file_put_contents($tmp, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX) === false) return false;
   if (!rename($tmp, $DATA_FILE)) { unlink($tmp); return false; }
+
+/* ===================================================================== */
+/* Merge Function — حماية من Concurrent Editing                          */
+/* ===================================================================== */
+function crm_merge_orders($oldOrders, $newOrders) {
+  if (!is_array($oldOrders) || !is_array($newOrders)) return $newOrders;
+  
+  // Build index of old orders by id
+  $oldById = array();
+  foreach ($oldOrders as $order) {
+    if (!is_array($order)) continue;
+    $id = isset($order['id']) ? $order['id'] : null;
+    if ($id !== null) $oldById[$id] = $order;
+  }
+  
+  // Build index of new orders by id
+  $newById = array();
+  foreach ($newOrders as $order) {
+    if (!is_array($order)) continue;
+    $id = isset($order['id']) ? $order['id'] : null;
+    if ($id !== null) $newById[$id] = $order;
+  }
+  
+  $merged = array();
+  
+  // Process all orders from new list
+  foreach ($newOrders as $newOrder) {
+    if (!is_array($newOrder)) { $merged[] = $newOrder; continue; }
+    $id = isset($newOrder['id']) ? $newOrder['id'] : null;
+    if ($id === null) { $merged[] = $newOrder; continue; }
+    
+    if (isset($oldById[$id])) {
+      // Order exists in old — use new version (user updated it)
+      $merged[] = $newOrder;
+    } else {
+      // New order — accept it
+      $merged[] = $newOrder;
+    }
+  }
+  
+  // Add orders from old that are missing in new (prevent deletion)
+  foreach ($oldById as $id => $oldOrder) {
+    if (!isset($newById[$id])) {
+      // Order missing from new write — preserve it (prevent concurrent deletion)
+      $merged[] = $oldOrder;
+    }
+  }
+  
+  return $merged;
+}
+
   return true;
 }
 
@@ -80,6 +131,11 @@ if ($m === 'POST') {
     copy($DATA_FILE, $backup);
   }
 
+  // Merge orders if this is an orders write
+  if ($k === 'afrizon_orders_v5' && isset($data[$k]['d']) && is_array($data[$k]['d']) && is_array($d)) {
+    $d = crm_merge_orders($data[$k]['d'], $d);
+  }
+  
   // Write new data
   $data[$k] = array('t' => $t, 'd' => $d);
   if (!crm_write($data)) {
