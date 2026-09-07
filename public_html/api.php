@@ -131,9 +131,17 @@ if ($m === 'POST') {
     copy($DATA_FILE, $backup);
   }
 
+  // Debug logging
+  $debug_log = __DIR__ . '/debug.log';
+  file_put_contents($debug_log, date('Y-m-d H:i:s') . " | POST key=$k | new_count=" . (is_array($d) ? count($d) : 'N/A') . " | old_count=" . (isset($data[$k]['d']) && is_array($data[$k]['d']) ? count($data[$k]['d']) : 'N/A') . "\n", FILE_APPEND);
+  
   // Merge orders if this is an orders write
   if ($k === 'afrizon_orders_v5' && isset($data[$k]['d']) && is_array($data[$k]['d']) && is_array($d)) {
+    $old_count = count($data[$k]['d']);
+    $new_count = count($d);
     $d = crm_merge_orders($data[$k]['d'], $d);
+    $merged_count = count($d);
+    file_put_contents($debug_log, date('Y-m-d H:i:s') . " | MERGE old=$old_count new=$new_count merged=$merged_count\n", FILE_APPEND);
   }
   
   // Write new data
