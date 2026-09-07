@@ -93,6 +93,34 @@ function crm_merge_orders($oldOrders, $newOrders) {
 
 $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+
+/* ---------- DEBUG ---------- */
+if (isset($_GET['action']) && $_GET['action'] === 'debug') {
+  if (crm_token() !== $SECRET) crm_out(array('ok'=>false, 'err'=>'token'), 403);
+  
+  $data = crm_read();
+  $debug = array('ok' => true, 'keys' => array(), 'debug_log' => '');
+  
+  foreach ($data as $key => $value) {
+    $count = 'N/A';
+    if (isset($value['d']) && is_array($value['d'])) {
+      $count = count($value['d']);
+    }
+    $debug['keys'][$key] = array(
+      'count' => $count,
+      'last_write' => isset($value['t']) ? date('Y-m-d H:i:s', $value['t'] / 1000) : 'N/A'
+    );
+  }
+  
+  // Read debug.log if exists
+  $debug_log_file = __DIR__ . '/debug.log';
+  if (file_exists($debug_log_file)) {
+    $debug['debug_log'] = file_get_contents($debug_log_file);
+  }
+  
+  crm_out($debug);
+}
+
 /* ---------- GET ---------- */
 if ($m === 'GET') {
   $data = crm_read();
