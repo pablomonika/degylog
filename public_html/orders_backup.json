@@ -1,0 +1,26 @@
+[
+  {
+    "id": 227,
+    "dateCreation": "2026-09-07",
+    "dateConfirmation": "2026-09-07",
+    "statut": "Confirmé",
+    "remarques": "Nmra wtsp +212 6 25 78 56 25 ",
+    "idCmd": "1",
+    "nom": "hamid",
+    "telephone": "0678284975",
+    "ville": "Bouskoura Nouaceur",
+    "adresse": "انا في بوسكورة حد مسجد سعودي قنطرة راجيلين",
+    "qte": 1,
+    "prix": 260,
+    "produit": "خاتم ملكي",
+    "livraison": "Expédier vers",
+    "upsell": 0,
+    "carousell": "",
+    "agent": "Meryam",
+    "link": "",
+    "carosellFlag": "",
+    "originLead": "Leader",
+    "commission": 45,
+    "fees": ""
+  }
+]
