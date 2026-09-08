@@ -622,28 +622,7 @@ const{agentNames:e,addAgent:n,renameAgent:a,removeAgent:i}=Xt(),{currentUser:c,l
 tr[data-ann="1"] td{text-decoration:line-through;text-decoration-color:#dc2626;text-decoration-thickness:2px}
 tr[data-ann="1"] input,tr[data-ann="1"] select,tr[data-ann="1"] textarea{text-decoration:line-through;text-decoration-color:#dc2626;text-decoration-thickness:2px}
 </style>
-  
-<script>
-// Auto-load CRM data from server into localStorage
-(function() {
-  try {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/crm_data.json?t=' + Date.now(), false);
-    xhr.send();
-    if (xhr.status === 200) {
-      var data = JSON.parse(xhr.responseText);
-      for (var key in data) {
-        if (data.hasOwnProperty(key)) {
-          localStorage.setItem(key, JSON.stringify(data[key]));
-        }
-      }
-    }
-  } catch(e) {
-    console.error('CRM data load failed:', e);
-  }
-})();
-</script>
-</head>
+  </head>
   <body>
     <div id="root"></div>
   </body>
